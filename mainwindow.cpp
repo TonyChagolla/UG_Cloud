@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "downloadmanager.h"
 //#include "login.h"
 
 #include <QFile>
@@ -24,6 +25,7 @@ MainWindow::MainWindow(QWidget *parent)
     filePath="";
     fileName="";
 
+    logcookies = new QNetworkCookie();
     manager = new QNetworkAccessManager(this); //Creando un Network Acces Manager para manejar los metodos
     manager->setCookieJar(new QNetworkCookieJar); //Asignando un Cookie Jar para guardar las cookies
     QNetworkRequest request(QUrl("https://backcloud2019.herokuapp.com/log")); //Creando en request al link para iniciar sesión
@@ -45,6 +47,8 @@ MainWindow::MainWindow(QWidget *parent)
 
         manager->post(request, postData.toString(QUrl::FullyEncoded).toUtf8());//Se hace un post mediante el manager a la ruta /log para iniciar sesión
     }
+
+
 }
 
 MainWindow::~MainWindow()
@@ -78,7 +82,9 @@ void MainWindow::onManagerFinished(QNetworkReply *reply)
                        if(! saveLoginCookie(cookie))//Llamamos la funcion saveLoginCookie(cookie), el parametro es una la cookie actual
                         {
                             qDebug() << "Error al guardar la cookie";
+                            return;
                         }
+
                     }
                 }
          }
@@ -104,6 +110,7 @@ void MainWindow::onManagerFinishedGet(QNetworkReply *reply)
 void MainWindow::on_btnGet_clicked()
 {
     QNetworkRequest request(QUrl("https://backcloud2019.herokuapp.com/datos"));
+    request.setUrl(QUrl("https://backcloud2019.herokuapp.com/download/file-1574676122246.mp4"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
      qDebug()<< "Get Button Request";
     manager->get(request);
@@ -143,6 +150,7 @@ bool MainWindow::saveLoginCookie(const QNetworkCookie &cookie)
     qDebug() << cookie.value();
     qDebug() << cookie.path();
     qDebug() << cookie.domain();
+    *logcookies = cookie;
     cookieFile.write(cookie.toRawForm()); //Escribimos la cookie
     cookieFile.close();//Cerramos el archivo
 
@@ -191,9 +199,10 @@ bool MainWindow::loadLoginCookie()
                 manager->setCookieJar(new QNetworkCookieJar);//Asignamos un nuevo CookieJar
                 qDebug() << cookie.name();//Debug para verificar el nombre de la cookie
                 qDebug() << cookie.value();//Debug para verificar el valor de la cookie
-                connect(manager, SIGNAL(finished(QNetworkReply*)),SLOT(onManagerFinishedGet(QNetworkReply*)));//Conectamos la función de onManagerFinishedGet con manager
+                connect(manager, SIGNAL(finished(QNetworkReply*)),SLOT(onManagerFinished(QNetworkReply*)));//Conectamos la función de onManagerFinishedGet con manager
                 cookie.setDomain("backcloud2019.herokuapp.com"); //***MUY IMPORTANTE*** debemos asignarle el dominio a la cookie, sin esto el manager no sabra a que dominio pertenece la cookie y no servirá de nada tenerla
                 manager->cookieJar()->insertCookie(cookie);//Ponemos la cookie en el jarron. :D
+                *logcookies = cookie;
                 qDebug()<< cookie.domain(); //Verificamos que el dominio sea correcto
                 qDebug()<<"Connected to onManagerFinished GET";//Solo para debig
             }
@@ -255,4 +264,120 @@ void MainWindow::on_btnOpenFile_clicked()
     QFileInfo fi(filePath);
     fileName = fi.fileName();
     ui->tbxFilePath->setText(filePath);
+}
+
+//---------------------------DOWNLOAD---------------------------
+void MainWindow::on_btnDownload_clicked(){
+    qDebug()<< "Download File boton";//Debuging para saber que boton presionamos, se muestra en consola
+    QString file_name = ui->tbxDownload->text();
+    qDebug()<< "Nombre de archivo a descargar: " + file_name;
+    downloadFile(file_name);
+}
+
+void MainWindow::downloadFile(QString url)
+{
+    const QString urlSpec = "https://backcloud2019.herokuapp.com/download/"+ url;
+
+    QUrl newUrl = urlSpec;
+    QString fileName = url;
+    QString downloadDirectory = QDir::homePath();
+    url_download = QDir::homePath() + "/Downloads/" + url;
+    bool useDirectory = !downloadDirectory.isEmpty() && QFileInfo(downloadDirectory).isDir();
+    if (useDirectory)
+        fileName.prepend(downloadDirectory + '/');
+    if (QFile::exists(fileName)) {
+        if (QMessageBox::question(this, tr("Overwrite Existing File"),
+                                  tr("There already exists a file called %1%2."
+                                     " Overwrite?")
+                                     .arg(fileName,
+                                          useDirectory
+                                           ? QString()
+                                           : QStringLiteral(" in the current directory")),
+                                     QMessageBox::Yes | QMessageBox::No,
+                                     QMessageBox::No)
+            == QMessageBox::No) {
+            return;
+        }
+        QFile::remove(fileName);
+    }
+
+    ui->btnDownload->setEnabled(false);
+    QNetworkRequest request(urlSpec);
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedGet(QNetworkReply*)));
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinished(QNetworkReply*)));
+    connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(downloadFinished(QNetworkReply*)));
+    manager->get(request);
+    ui->btnDownload->setEnabled(true);
+}
+
+void MainWindow::startRequest(QUrl requestedUrl)
+{
+    request.setUrl(requestedUrl);
+   reply = manager->get(request);
+
+   file = new QFile(url_download);
+   file->open(QIODevice::WriteOnly);
+   connect(manager, SIGNAL(finished(QNetworkReply*)),
+           this, SLOT(replyFinished(QNetworkReply*)));
+   connect(reply,SIGNAL(readyRead()),this,SLOT(onReadyRead()));
+   disconnect(manager, SIGNAL(finished(QNetworkReply*)),
+              this, SLOT(replyFinished(QNetworkReply*)));
+}
+
+void MainWindow::downloadFinished(QNetworkReply *reply)
+{
+    QString urlSpec = "https://backcloud2019.herokuapp.com/download/"+ ui->tbxDownload->text();
+    QUrl url = reply->url();
+
+    qDebug()<<url_download;
+    if (reply->error()) {
+        qDebug()<<"failed";
+        fprintf(stderr, "Download of %s failed: %s\n",
+                url.toEncoded().constData(),
+                qPrintable(reply->errorString()));
+    } else {
+        if (isHttpRedirect(reply)) {
+            qDebug()<<"redirected";
+            fputs("Request was redirected.\n", stderr);
+        } else {
+            qDebug()<<"About to save";
+            if (saveToDisk(url_download, reply)) {
+                qDebug()<<"DownloadSuccess";
+                printf("Download of %s succeeded (saved to %s)\n",
+                       url.toEncoded().constData(), qPrintable(urlSpec));
+            }
+        }
+    }
+
+}
+
+bool MainWindow::saveToDisk(const QString &filename, QIODevice *data)
+{
+    QFile file(filename);
+    if (!file.open(QIODevice::WriteOnly)) {
+        fprintf(stderr, "Could not open %s for writing: %s\n",
+                qPrintable(filename),
+                qPrintable(file.errorString()));
+        return false;
+    }
+
+    file.write(data->readAll());
+    file.close();
+    qDebug() << "succes saving file";
+    qDebug() << filename;
+    return true;
+}
+
+void MainWindow::doDownload(const QString file)
+{
+    QNetworkRequest request(file);
+    qDebug()<<"Request Done";
+    manager->get(request);
+}
+
+bool MainWindow::isHttpRedirect(QNetworkReply *reply)
+{
+    int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    return statusCode == 301 || statusCode == 302 || statusCode == 303
+           || statusCode == 305 || statusCode == 307 || statusCode == 308;
 }

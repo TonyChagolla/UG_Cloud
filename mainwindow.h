@@ -6,6 +6,10 @@
 #include <QNetworkCookieJar>
 #include <string>
 #include <QUrlQuery>
+#include <QFile>
+#include <QtCore>
+#include <QtNetwork>
+#include <cstdio>
 
 void test();
 
@@ -20,7 +24,10 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    static bool isHttpRedirect(QNetworkReply *reply);
 public slots:
+     bool saveToDisk(const QString &filename, QIODevice *data);
+     void doDownload(const QString file);
 
 private slots:
     void on_btnRequest_clicked();
@@ -35,15 +42,27 @@ private slots:
 
     void on_btnOpenFile_clicked();
 
+    void on_btnDownload_clicked();
+
+    //Prueba
+    void downloadFile(QString url);
+    void startRequest(QUrl requestedUrl);
+    void downloadFinished(QNetworkReply *reply);
+
 private:
     Ui::MainWindow *ui;
     QUrl urlsearch, urlcookie;
     QNetworkAccessManager *manager;
     //QNetworkCookieJar *logcookies;
     QNetworkRequest request;
-    QNetworkCookieJar *logcookies;
+    QNetworkCookie *logcookies;
     bool m_loaded;
     QString filePath, fileName;
+
+    //Prueba
+    QString url_download;
+    QFile *file;
+    QNetworkReply *reply;
 
 };
 #endif // MAINWINDOW_H

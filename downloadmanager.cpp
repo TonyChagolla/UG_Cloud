@@ -1,9 +1,11 @@
 #include "downloadmanager.h"
 #include "mainwindow.h"
 
-downloadManager::downloadManager(QNetworkAccessManager *oldManager)
+downloadManager::downloadManager(QNetworkCookie *logCookie)
 {
-    manager = oldManager;
+    manager = new QNetworkAccessManager;
+    manager->setCookieJar(new QNetworkCookieJar);
+    manager->cookieJar()->insertCookie(*logCookie);
     connect(manager, SIGNAL(finished(QNetworkReply*)),
             SLOT(downloadFinished(QNetworkReply*)));
 }
@@ -13,22 +15,25 @@ downloadManager::~downloadManager()
 
 void downloadManager::doDownload(const QString file)
 {
-    QNetworkRequest request(QUrl("https://backcloud2019.herokuapp.com/download"));
-    QNetworkReply *reply = manager->get(request);
+    QNetworkRequest request(file);
+    //QNetworkReply *reply = manager->get(request);
+    qDebug()<<"Request Done";
 
-#if QT_CONFIG(ssl)
-    connect(reply, SIGNAL(sslErrors(QList<QSslError>)),
-            SLOT(sslErrors(QList<QSslError>)));
-#endif
+//#if QT_CONFIG(ssl)
+    //connect(manager, SIGNAL(sslErrors(QList<QSslError>)),
+     //       SLOT(sslErrors(QList<QSslError>)));
+    manager->get(request);
+//#endif
 
-    currentDownloads.append(reply);
+    //currentDownloads.append(reply);
 }
 
 QString downloadManager::saveFileName(const QUrl &url)
 {
     QString path = url.path();
+    qDebug()<<path;
     QString basename = QFileInfo(path).fileName();
-
+    qDebug()<<basename;
     if (basename.isEmpty())
         basename = "download";
 
@@ -57,7 +62,8 @@ bool downloadManager::saveToDisk(const QString &filename, QIODevice *data)
 
     file.write(data->readAll());
     file.close();
-
+    qDebug() << "succes saving file";
+    qDebug() << filename;
     return true;
 }
 
@@ -68,8 +74,10 @@ bool downloadManager::isHttpRedirect(QNetworkReply *reply)
            || statusCode == 305 || statusCode == 307 || statusCode == 308;
 }
 
-void downloadManager::execute()
+void downloadManager::execute(QString urlDownload)
 {
+
+    /*
     QStringList args = QCoreApplication::instance()->arguments();
     args.takeFirst();           // skip the first argument, which is the program's name
     if (args.isEmpty()) {
@@ -82,11 +90,11 @@ void downloadManager::execute()
         QCoreApplication::instance()->quit();
         return;
     }
-
-    for (const QString &arg : qAsConst(args)) {
-        QUrl url = QUrl::fromEncoded(arg.toLocal8Bit());
-        //doDownload();
-    }
+    */
+    //for (const QString &arg : qAsConst(args)) {
+        //QUrl url = QUrl::fromEncoded(arg.toLocal8Bit());
+        doDownload(urlDownload);
+    //}
 }
 
 void downloadManager::sslErrors(const QList<QSslError> &sslErrors)
@@ -101,40 +109,28 @@ void downloadManager::sslErrors(const QList<QSslError> &sslErrors)
 
 void downloadManager::downloadFinished(QNetworkReply *reply)
 {
+    qDebug()<<"URL";
     QUrl url = reply->url();
+
+    qDebug()<<url;
     if (reply->error()) {
+        qDebug()<<"failed";
         fprintf(stderr, "Download of %s failed: %s\n",
                 url.toEncoded().constData(),
                 qPrintable(reply->errorString()));
     } else {
         if (isHttpRedirect(reply)) {
+            qDebug()<<"redirected";
             fputs("Request was redirected.\n", stderr);
         } else {
             QString filename = saveFileName(url);
             if (saveToDisk(filename, reply)) {
+                qDebug()<<"DownloadSuccess";
                 printf("Download of %s succeeded (saved to %s)\n",
                        url.toEncoded().constData(), qPrintable(filename));
             }
         }
     }
 
-    currentDownloads.removeAll(reply);
-    reply->deleteLater();
-
-    if (currentDownloads.isEmpty()) {
-        // all downloads finished
-        QCoreApplication::instance()->quit();
-    }
 }
 
-/*
-int main(int argc, char **argv)
-{
-    QCoreApplication app(argc, argv);
-
-    downloadManager manager;
-    QTimer::singleShot(0, &manager, SLOT(execute()));
-
-    app.exec();
-}
-*/
