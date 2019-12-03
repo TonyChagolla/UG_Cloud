@@ -6,85 +6,120 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>598</width>
-    <height>364</height>
+    <width>600</width>
+    <height>354</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QPushButton" name="btnRequest">
-    <property name="geometry">
-     <rect>
-      <x>510</x>
-      <y>290</y>
-      <width>75</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Send File</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="btnGet">
-    <property name="geometry">
-     <rect>
-      <x>420</x>
-      <y>290</y>
-      <width>75</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Get</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="btnOpenFile">
-    <property name="geometry">
-     <rect>
-      <x>330</x>
-      <y>290</y>
-      <width>75</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Open File</string>
-    </property>
-   </widget>
-   <widget class="QLineEdit" name="tbxFilePath">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>10</x>
       <y>290</y>
-      <width>311</width>
-      <height>20</height>
+      <width>581</width>
+      <height>30</height>
      </rect>
     </property>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QLineEdit" name="tbxFilePath"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnOpenFile">
+       <property name="text">
+        <string>Abrir</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="btnRequest">
+       <property name="text">
+        <string>Subir</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </widget>
-   <widget class="QPushButton" name="btnDownload">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
-      <x>510</x>
-      <y>250</y>
-      <width>75</width>
-      <height>23</height>
+      <x>10</x>
+      <y>10</y>
+      <width>581</width>
+      <height>271</height>
      </rect>
     </property>
-    <property name="text">
-     <string>Download</string>
-    </property>
-   </widget>
-   <widget class="QLineEdit" name="tbxDownload">
-    <property name="geometry">
-     <rect>
-      <x>190</x>
-      <y>250</y>
-      <width>311</width>
-      <height>20</height>
-     </rect>
-    </property>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <widget class="QTableView" name="tableView">
+       <property name="editTriggers">
+        <set>QAbstractItemView::NoEditTriggers</set>
+       </property>
+       <property name="selectionBehavior">
+        <enum>QAbstractItemView::SelectRows</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <widget class="QPushButton" name="btnDelete">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Minimum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Eliminar</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnGet">
+         <property name="text">
+          <string>Actualizar</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="btnDownload">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Minimum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Descargar</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
@@ -92,12 +127,29 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>598</width>
-     <height>21</height>
+     <width>600</width>
+     <height>26</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuArchivo">
+    <property name="title">
+     <string>Archivo</string>
+    </property>
+    <addaction name="actionIniciar_sesi_n"/>
+    <addaction name="actionCerrar_sesi_n"/>
+   </widget>
+   <addaction name="menuArchivo"/>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionIniciar_sesi_n">
+   <property name="text">
+    <string>Iniciar sesión / Registrarse</string>
+   </property>
+  </action>
+  <action name="actionCerrar_sesi_n">
+   <property name="text">
+    <string>Cerrar sesión</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>

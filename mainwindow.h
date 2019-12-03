@@ -49,7 +49,23 @@ private slots:
     void startRequest(QUrl requestedUrl);
     void downloadFinished(QNetworkReply *reply);
 
+    void on_tableView_clicked(const QModelIndex &index);
+
+    void on_tableView_activated(const QModelIndex &index);
+
+    void on_btnDelete_clicked();
+
+    void onManagerFinishedDelete(QNetworkReply *reply);
+
+    void on_actionIniciar_sesi_n_triggered();
+
+    void on_actionCerrar_sesi_n_triggered();
+
+    void onManagerFinishedLogOut(QNetworkReply *reply);
+
 private:
+    void disconnectManager();
+    void login();
     Ui::MainWindow *ui;
     QUrl urlsearch, urlcookie;
     QNetworkAccessManager *manager;
@@ -57,7 +73,8 @@ private:
     QNetworkRequest request;
     QNetworkCookie *logcookies;
     bool m_loaded;
-    QString filePath, fileName;
+    QString filePath, fileName, data, fileDownload;
+    QString username, password;
 
     //Prueba
     QString url_download;

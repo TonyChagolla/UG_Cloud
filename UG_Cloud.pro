@@ -18,18 +18,16 @@ INCLUDEPATH += "C:/Program Files/OpenSSL-Win64/include"
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    downloadmanager.cpp \
-    login.cpp \
+    logwindow.cpp \
     main.cpp \
     mainwindow.cpp
 
 HEADERS += \
-    downloadmanager.h \
-    login.h \
+    logwindow.h \
     mainwindow.h
 
 FORMS += \
-    login.ui \
+    logwindow.ui \
     mainwindow.ui
 
 # Default rules for deployment.

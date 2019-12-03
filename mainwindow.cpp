@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include "downloadmanager.h"
+#include "logwindow.h"
 //#include "login.h"
 
 #include <QFile>
@@ -15,6 +15,7 @@
 #include <QHttpPart>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QStandardItemModel>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -28,7 +29,7 @@ MainWindow::MainWindow(QWidget *parent)
     logcookies = new QNetworkCookie();
     manager = new QNetworkAccessManager(this); //Creando un Network Acces Manager para manejar los metodos
     manager->setCookieJar(new QNetworkCookieJar); //Asignando un Cookie Jar para guardar las cookies
-    QNetworkRequest request(QUrl("https://backcloud2019.herokuapp.com/log")); //Creando en request al link para iniciar sesión
+    QNetworkRequest request(QUrl("https://backcloud2019.herokuapp.com/add")); //Creando en request al link para iniciar sesión
 
     //Llamando la funcion para cargar la cookie al manager en caso de existir
     //La funcion loadLoginCookie() regresa un bool, si es falso quiere decir que no existe la cookie, inicia sesión y guarda la cookie
@@ -36,17 +37,9 @@ MainWindow::MainWindow(QWidget *parent)
     //SI LA COOKIE EXPIRA, BUSCAR EN DOCUMENTOS EL ARCHIVO cookie.dat Y BORRARLO, REINICIAR LA APP PARA OBTENER UNA NUEVA COOKIE
     if(!loadLoginCookie())
     {
-        request.setUrl(QUrl("https://backcloud2019.herokuapp.com/log")); //Asignamos la URL a donde haremos la request
-        request.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded"); //Establecemos la cabecera con el tipo de datos que enviamos en la peticion
-
-        //Creamos postData, un tipo de datos que asemeja a un formulario, este se manda durante el post y contiene los datos de usuario y contraseña
-        //Esto es provicional, posteriormente se iniciará sesión de forma distinta.
-        QUrlQuery postData;
-        postData.addQueryItem("user", "Tony");//Se agrega el user y pass
-        postData.addQueryItem("pass", "Contraseña");
-
-        manager->post(request, postData.toString(QUrl::FullyEncoded).toUtf8());//Se hace un post mediante el manager a la ruta /log para iniciar sesión
+        login();
     }
+    on_btnGet_clicked();
 
 
 }
@@ -59,6 +52,8 @@ MainWindow::~MainWindow()
 //Al presionar el boton btnRequest se hace un get a la ruta /datos
 void MainWindow::on_btnRequest_clicked()
 {
+    disconnectManager();
+    connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedGet(QNetworkReply*)));
     QNetworkRequest request(QUrl("https://backcloud2019.herokuapp.com/datos")); //Creando el request y asignando la url
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");//Asignando las cabeceras con el tipo de datos que esperamos recibir
     qDebug()<< "Send File boton";//Debuging para saber que boton presionamos, se muestra en consola
@@ -68,7 +63,45 @@ void MainWindow::on_btnRequest_clicked()
 //Esta funcion eta conectada a manager y se encarga de obtener la respuesta del servidor
 void MainWindow::onManagerFinished(QNetworkReply *reply)
 {
-    //Reply es on objeto de QNetworkReply y contiene la respuesta del servidor
+    data = reply->readAll();
+    qDebug().noquote()<<data;
+
+    QStringList fileNames;
+    QStringList fileKeys;
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(data.toUtf8());
+    QJsonArray jsonArray = jsonResponse.array();
+    QJsonObject jsonObject = jsonResponse.object();
+    if(jsonResponse["eror"].toString()=="No inicio session")
+    {
+        QMessageBox::StandardButton answer;
+        answer = QMessageBox::information(this, "Inicia sesión", "La sesión ha caducado o no has iniciado sesión.");
+    }
+    QAbstractItemModel *m_listModel = new QStandardItemModel(this);
+    m_listModel->insertColumns(0,3);
+    m_listModel->insertRows(0,jsonArray.count());
+    m_listModel->setHeaderData(0, Qt::Horizontal, QObject::tr("Nombre"));
+    m_listModel->setHeaderData(1, Qt::Horizontal, QObject::tr("Alt Nombre"));
+    m_listModel->setHeaderData(2, Qt::Horizontal, QObject::tr("size KB"));
+    int i = 0;
+    foreach(const QJsonValue & value, jsonArray){
+        QJsonObject obj = value.toObject();
+        m_listModel->setData(m_listModel->index(i,0), obj["nom_or"].toString());
+        m_listModel->setData(m_listModel->index(i,1), obj["titulo"].toString());
+        m_listModel->setData(m_listModel->index(i,2), obj["size"].toInt()/1024);
+        i+=1;
+    }
+    ui->tableView->reset();
+    ui->tableView->setModel(m_listModel);
+    ui->tableView->setColumnWidth(0,2*this->width()/5);
+    ui->tableView->setColumnWidth(1,2*this->width()/5);
+    ui->tableView->setColumnWidth(2,this->width()/5);
+    qDebug() <<"Finished";
+    reply->deleteLater();
+}
+
+//Se manager se conesta con esta funcion solo cuando ya existe una cookie
+void MainWindow::onManagerFinishedGet(QNetworkReply *reply)
+{
     //Si m_loaded es falso significa que no existe la cookie y se procede a crear
     if(!m_loaded){
         QVariant cookieVar = reply->header(QNetworkRequest::SetCookieHeader);//La cookie se encuentra en la cabecera, almacenamos esto en cookieVar
@@ -84,33 +117,29 @@ void MainWindow::onManagerFinished(QNetworkReply *reply)
                             qDebug() << "Error al guardar la cookie";
                             return;
                         }
+                       on_btnGet_clicked();
 
                     }
                 }
          }
         else
         {
-            qDebug() << "Login cookie not valid"; //Si no hay cookies terminamos
+            qDebug()<<"Cookie from file";
+
         }
         m_loaded = true;//cambiamos m_loaded = true para saber que ya se creo la cookie y no sobreescibirla en la misma sesión
     }
-    qDebug()<< reply->readAll(); //Mostramos la respuesta en la consola
-    //AUN FALTA IMPLEMENTAR EL CREAR UNA LISTVIEW PARA MOSTRAR EN LA APLICACION
-    reply->deleteLater();
-}
-
-//Se manager se conesta con esta funcion solo cuando ya existe una cookie
-void MainWindow::onManagerFinishedGet(QNetworkReply *reply)
-{
-    qDebug()<< reply->readAll();
+    qDebug().noquote()<< reply->readAll();
     reply->deleteLater();
 }
 
 //Hacemos un get a /datos
 void MainWindow::on_btnGet_clicked()
 {
+    disconnectManager();
+    connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinished(QNetworkReply*)));
     QNetworkRequest request(QUrl("https://backcloud2019.herokuapp.com/datos"));
-    request.setUrl(QUrl("https://backcloud2019.herokuapp.com/download/file-1574676122246.mp4"));
+    //request.setUrl(QUrl("http://tonychagolla.herokuapp.com/api/employees"));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
      qDebug()<< "Get Button Request";
     manager->get(request);
@@ -172,7 +201,8 @@ bool MainWindow::loadLoginCookie()
     if(! cookieFile.exists())
     {
         qDebug()<<"Connected to onManagerFinished";
-        connect(manager, SIGNAL(finished(QNetworkReply*)),SLOT(onManagerFinished(QNetworkReply*)));
+        disconnectManager();
+        connect(manager, SIGNAL(finished(QNetworkReply*)),SLOT(onManagerFinishedGet(QNetworkReply*)));
         return false;
     }
 
@@ -199,12 +229,13 @@ bool MainWindow::loadLoginCookie()
                 manager->setCookieJar(new QNetworkCookieJar);//Asignamos un nuevo CookieJar
                 qDebug() << cookie.name();//Debug para verificar el nombre de la cookie
                 qDebug() << cookie.value();//Debug para verificar el valor de la cookie
-                connect(manager, SIGNAL(finished(QNetworkReply*)),SLOT(onManagerFinished(QNetworkReply*)));//Conectamos la función de onManagerFinishedGet con manager
+                disconnectManager();
+                connect(manager, SIGNAL(finished(QNetworkReply*)),SLOT(onManagerFinishedGet(QNetworkReply*)));//Conectamos la función de onManagerFinishedGet con manager
                 cookie.setDomain("backcloud2019.herokuapp.com"); //***MUY IMPORTANTE*** debemos asignarle el dominio a la cookie, sin esto el manager no sabra a que dominio pertenece la cookie y no servirá de nada tenerla
                 manager->cookieJar()->insertCookie(cookie);//Ponemos la cookie en el jarron. :D
                 *logcookies = cookie;
                 qDebug()<< cookie.domain(); //Verificamos que el dominio sea correcto
-                qDebug()<<"Connected to onManagerFinished GET";//Solo para debig
+                qDebug()<<"Connected to onManagerFinished Get";//Solo para debig
             }
             else
             {
@@ -269,7 +300,7 @@ void MainWindow::on_btnOpenFile_clicked()
 //---------------------------DOWNLOAD---------------------------
 void MainWindow::on_btnDownload_clicked(){
     qDebug()<< "Download File boton";//Debuging para saber que boton presionamos, se muestra en consola
-    QString file_name = ui->tbxDownload->text();
+    QString file_name =fileDownload;
     qDebug()<< "Nombre de archivo a descargar: " + file_name;
     downloadFile(file_name);
 }
@@ -303,8 +334,7 @@ void MainWindow::downloadFile(QString url)
 
     ui->btnDownload->setEnabled(false);
     QNetworkRequest request(urlSpec);
-    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedGet(QNetworkReply*)));
-    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinished(QNetworkReply*)));
+    disconnectManager();
     connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(downloadFinished(QNetworkReply*)));
     manager->get(request);
     ui->btnDownload->setEnabled(true);
@@ -326,11 +356,12 @@ void MainWindow::startRequest(QUrl requestedUrl)
 
 void MainWindow::downloadFinished(QNetworkReply *reply)
 {
-    QString urlSpec = "https://backcloud2019.herokuapp.com/download/"+ ui->tbxDownload->text();
+    QString urlSpec = "https://backcloud2019.herokuapp.com/download/"+fileDownload;
     QUrl url = reply->url();
 
     qDebug()<<url_download;
     if (reply->error()) {
+        QMessageBox::information(this, "Error de descarga","Ocurrio un error al descargar el archivo.");
         qDebug()<<"failed";
         fprintf(stderr, "Download of %s failed: %s\n",
                 url.toEncoded().constData(),
@@ -342,7 +373,8 @@ void MainWindow::downloadFinished(QNetworkReply *reply)
         } else {
             qDebug()<<"About to save";
             if (saveToDisk(url_download, reply)) {
-                qDebug()<<"DownloadSuccess";
+                QMessageBox::information(this, "Descarga Exitosa","El archivo se ha descargado correctaente");
+                qDebug()<<"Download Success";
                 printf("Download of %s succeeded (saved to %s)\n",
                        url.toEncoded().constData(), qPrintable(urlSpec));
             }
@@ -380,4 +412,118 @@ bool MainWindow::isHttpRedirect(QNetworkReply *reply)
     int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     return statusCode == 301 || statusCode == 302 || statusCode == 303
            || statusCode == 305 || statusCode == 307 || statusCode == 308;
+}
+
+void MainWindow::disconnectManager()
+{
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedGet(QNetworkReply*)));
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinished(QNetworkReply*)));
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedDelete(QNetworkReply*)));
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(downloadFinished(QNetworkReply*)));
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedLogOut(QNetworkReply*)));
+}
+
+void MainWindow::on_tableView_clicked(const QModelIndex &index)
+{
+    ui->btnDownload->setEnabled(true);
+    ui->btnDelete->setEnabled(true);
+    int indexRow = ui->tableView->selectionModel()->currentIndex().row();
+    QString selectedItem = ui->tableView->selectionModel()->currentIndex().sibling(indexRow, 1).data().toString();
+    fileDownload = selectedItem;
+    qDebug()<< fileDownload;
+}
+
+void MainWindow::login()
+{
+    request.setUrl(QUrl("https://backcloud2019.herokuapp.com/log")); //Asignamos la URL a donde haremos la request
+    request.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded"); //Establecemos la cabecera con el tipo de datos que enviamos en la peticion
+
+    //Creamos postData, un tipo de datos que asemeja a un formulario, este se manda durante el post y contiene los datos de usuario y contraseña
+    //Esto es provicional, posteriormente se iniciará sesión de forma distinta.
+    QUrlQuery postData;
+    qDebug()<<username;
+    qDebug()<<password;
+    postData.addQueryItem("user", username);//Se agrega el user y pass
+    postData.addQueryItem("pass", password);
+
+    manager->post(request, postData.toString(QUrl::FullyEncoded).toUtf8());//Se hace un post mediante el manager a la ruta /log para iniciar sesión
+}
+
+void MainWindow::on_btnDelete_clicked()
+{
+    QMessageBox::StandardButton answer;
+    answer = QMessageBox::question(this, "Advertencia", "¿Deseas eliminar el archivo de forma permanente?", QMessageBox::Yes|QMessageBox::No);
+      if (answer == QMessageBox::Yes) {
+          disconnectManager();
+          connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedDelete(QNetworkReply*)));
+          QString url_delete = "http://backcloud2019.herokuapp.com/delete/"+fileDownload;
+          QNetworkRequest request(url_delete);
+          QUrlQuery deleteData;
+          deleteData.addQueryItem("user", "Tony");
+          manager->deleteResource(request);
+
+      } else {}
+}
+
+void MainWindow::onManagerFinishedDelete(QNetworkReply *reply)
+{
+    qDebug().noquote()<<reply->readAll();
+}
+
+void MainWindow::on_actionIniciar_sesi_n_triggered()
+{
+    LogWindow newLog;
+    newLog.setModal(true);
+    newLog.exec();
+    username = newLog.getUserLog();
+    password = newLog.getPassLog();
+    m_loaded=false;
+    remove("./cookie.dat");
+    disconnectManager();
+    if(!loadLoginCookie())
+    {
+        login();
+    }
+}
+
+void MainWindow::on_tableView_activated(const QModelIndex &index)
+{
+    qDebug()<<index;
+}
+
+void MainWindow::on_actionCerrar_sesi_n_triggered()
+{
+    remove("./cookie.dat");
+    disconnectManager();
+    connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedLogOut(QNetworkReply*)));
+    QString urlLogOut = "http://backcloud2019.herokuapp.com/logout";
+    QNetworkRequest request(urlLogOut);
+    manager->get(request);
+
+
+
+}
+
+void MainWindow::onManagerFinishedLogOut(QNetworkReply *reply)
+{
+    QString respuesta = reply->readAll();
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(respuesta.toUtf8());
+    QJsonObject jsonObject = jsonResponse.object();
+    QMessageBox::StandardButton answer;
+    if(jsonObject["error"].toBool())
+    {
+        answer = QMessageBox::information(this, "Log Out", "Algo salio mal, vuelve a intentar:");
+    }
+    else
+    {
+        answer = QMessageBox::information(this, "Log Out", "Se ha cerrado sesión");
+        QAbstractItemModel *m_listModel = new QStandardItemModel(this);
+        m_listModel->insertColumns(0,3);
+        m_listModel->setHeaderData(0, Qt::Horizontal, QObject::tr("Nombre"));
+        m_listModel->setHeaderData(1, Qt::Horizontal, QObject::tr("Alt Nombre"));
+        m_listModel->setHeaderData(2, Qt::Horizontal, QObject::tr("size KB"));
+        ui->tableView->reset();
+        ui->tableView->setModel(m_listModel);
+    }
+
 }
