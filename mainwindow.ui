@@ -6,12 +6,30 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>600</width>
-    <height>354</height>
+    <width>670</width>
+    <height>353</height>
    </rect>
   </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>670</width>
+    <height>353</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>670</width>
+    <height>353</height>
+   </size>
+  </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>UG Cloud</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QWidget" name="layoutWidget">
@@ -19,7 +37,7 @@
      <rect>
       <x>10</x>
       <y>290</y>
-      <width>581</width>
+      <width>651</width>
       <height>30</height>
      </rect>
     </property>
@@ -48,7 +66,7 @@
      <rect>
       <x>10</x>
       <y>10</y>
-      <width>581</width>
+      <width>651</width>
       <height>271</height>
      </rect>
     </property>
@@ -127,15 +145,16 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>600</width>
+     <width>670</width>
      <height>26</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuArchivo">
     <property name="title">
-     <string>Archivo</string>
+     <string>Usuario</string>
     </property>
     <addaction name="actionIniciar_sesi_n"/>
+    <addaction name="actionActualizar_contrase_a"/>
     <addaction name="actionCerrar_sesi_n"/>
    </widget>
    <addaction name="menuArchivo"/>
@@ -148,6 +167,11 @@
   <action name="actionCerrar_sesi_n">
    <property name="text">
     <string>Cerrar sesión</string>
+   </property>
+  </action>
+  <action name="actionActualizar_contrase_a">
+   <property name="text">
+    <string>Actualizar contraseña</string>
    </property>
   </action>
  </widget>

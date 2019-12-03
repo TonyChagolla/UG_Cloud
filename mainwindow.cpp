@@ -1,7 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "logwindow.h"
-//#include "login.h"
+#include "editpasswindow.h"
 
 #include <QFile>
 #include <QJsonDocument>
@@ -53,7 +53,7 @@ MainWindow::~MainWindow()
 void MainWindow::on_btnRequest_clicked()
 {
     disconnectManager();
-    connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedGet(QNetworkReply*)));
+    connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedSend(QNetworkReply*)));
     QNetworkRequest request(QUrl("https://backcloud2019.herokuapp.com/datos")); //Creando el request y asignando la url
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");//Asignando las cabeceras con el tipo de datos que esperamos recibir
     qDebug()<< "Send File boton";//Debuging para saber que boton presionamos, se muestra en consola
@@ -77,24 +77,27 @@ void MainWindow::onManagerFinished(QNetworkReply *reply)
         answer = QMessageBox::information(this, "Inicia sesión", "La sesión ha caducado o no has iniciado sesión.");
     }
     QAbstractItemModel *m_listModel = new QStandardItemModel(this);
-    m_listModel->insertColumns(0,3);
+    m_listModel->insertColumns(0,4);
     m_listModel->insertRows(0,jsonArray.count());
-    m_listModel->setHeaderData(0, Qt::Horizontal, QObject::tr("Nombre"));
-    m_listModel->setHeaderData(1, Qt::Horizontal, QObject::tr("Alt Nombre"));
-    m_listModel->setHeaderData(2, Qt::Horizontal, QObject::tr("size KB"));
+    m_listModel->setHeaderData(0, Qt::Horizontal, QObject::tr("ID"));
+    m_listModel->setHeaderData(1, Qt::Horizontal, QObject::tr("Nombre"));
+    m_listModel->setHeaderData(2, Qt::Horizontal, QObject::tr("Alt Nombre"));
+    m_listModel->setHeaderData(3, Qt::Horizontal, QObject::tr("size KB"));
     int i = 0;
     foreach(const QJsonValue & value, jsonArray){
         QJsonObject obj = value.toObject();
-        m_listModel->setData(m_listModel->index(i,0), obj["nom_or"].toString());
-        m_listModel->setData(m_listModel->index(i,1), obj["titulo"].toString());
-        m_listModel->setData(m_listModel->index(i,2), obj["size"].toInt()/1024);
+        m_listModel->setData(m_listModel->index(i,0), obj["id_archivos"].toInt());
+        m_listModel->setData(m_listModel->index(i,1), obj["nom_or"].toString());
+        m_listModel->setData(m_listModel->index(i,2), obj["titulo"].toString());
+        m_listModel->setData(m_listModel->index(i,3), obj["size"].toInt()/1024);
         i+=1;
     }
     ui->tableView->reset();
     ui->tableView->setModel(m_listModel);
-    ui->tableView->setColumnWidth(0,2*this->width()/5);
+    ui->tableView->setColumnWidth(0,this->width()/10);
     ui->tableView->setColumnWidth(1,2*this->width()/5);
-    ui->tableView->setColumnWidth(2,this->width()/5);
+    ui->tableView->setColumnWidth(2,2*this->width()/5);
+    ui->tableView->setColumnWidth(3,this->width()/10);
     qDebug() <<"Finished";
     reply->deleteLater();
 }
@@ -251,7 +254,11 @@ bool MainWindow::loadLoginCookie()
 //FALTA IMPLEMENTAR LA SELECCIÓN DE ARCHIVOS
 void MainWindow::sendFile(){
     if(filePath=="")
+    {
+        QMessageBox::information(this, "Advertencia", "Debe selecconar un archivo para subir");
         return;
+    }
+
     QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);//Los archivos se mandan mediante MultiPart
         QHttpPart imagePart; //Esto va a contener la info del archivo a enviar mediante la cabecera
         //Asignamos la cabecera form-data es el tipo de dato, name debe ser = file y filename es el nombre original del archivo.
@@ -373,7 +380,7 @@ void MainWindow::downloadFinished(QNetworkReply *reply)
         } else {
             qDebug()<<"About to save";
             if (saveToDisk(url_download, reply)) {
-                QMessageBox::information(this, "Descarga Exitosa","El archivo se ha descargado correctaente");
+                QMessageBox::information(this, "Descarga exitosa","El archivo se ha descargado correctaente");
                 qDebug()<<"Download Success";
                 printf("Download of %s succeeded (saved to %s)\n",
                        url.toEncoded().constData(), qPrintable(urlSpec));
@@ -416,11 +423,13 @@ bool MainWindow::isHttpRedirect(QNetworkReply *reply)
 
 void MainWindow::disconnectManager()
 {
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedSend(QNetworkReply*)));
     disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedGet(QNetworkReply*)));
     disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinished(QNetworkReply*)));
     disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedDelete(QNetworkReply*)));
     disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(downloadFinished(QNetworkReply*)));
     disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedLogOut(QNetworkReply*)));
+    disconnect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedActualizar(QNetworkReply*)));
 }
 
 void MainWindow::on_tableView_clicked(const QModelIndex &index)
@@ -428,7 +437,9 @@ void MainWindow::on_tableView_clicked(const QModelIndex &index)
     ui->btnDownload->setEnabled(true);
     ui->btnDelete->setEnabled(true);
     int indexRow = ui->tableView->selectionModel()->currentIndex().row();
-    QString selectedItem = ui->tableView->selectionModel()->currentIndex().sibling(indexRow, 1).data().toString();
+    QString selectedItem = ui->tableView->selectionModel()->currentIndex().sibling(indexRow, 2).data().toString();
+    file_id = ui->tableView->selectionModel()->currentIndex().sibling(indexRow, 0).data().toString();
+    qDebug()<<"file_id: "+file_id;
     fileDownload = selectedItem;
     qDebug()<< fileDownload;
 }
@@ -445,10 +456,14 @@ void MainWindow::login()
     qDebug()<<password;
     postData.addQueryItem("user", username);//Se agrega el user y pass
     postData.addQueryItem("pass", password);
+    qDebug()<<postData.queryItemValue("pass");
+    qDebug()<<postData.queryItemValue("pass");
+    qDebug()<<postData.toString(QUrl::FullyEncoded).toUtf8();
 
     manager->post(request, postData.toString(QUrl::FullyEncoded).toUtf8());//Se hace un post mediante el manager a la ruta /log para iniciar sesión
 }
 
+//-----------------------------DELETE----------------------------
 void MainWindow::on_btnDelete_clicked()
 {
     QMessageBox::StandardButton answer;
@@ -456,10 +471,9 @@ void MainWindow::on_btnDelete_clicked()
       if (answer == QMessageBox::Yes) {
           disconnectManager();
           connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedDelete(QNetworkReply*)));
-          QString url_delete = "http://backcloud2019.herokuapp.com/delete/"+fileDownload;
+          QString url_delete = "http://backcloud2019.herokuapp.com/del/"+file_id;
           QNetworkRequest request(url_delete);
           QUrlQuery deleteData;
-          deleteData.addQueryItem("user", "Tony");
           manager->deleteResource(request);
 
       } else {}
@@ -467,9 +481,25 @@ void MainWindow::on_btnDelete_clicked()
 
 void MainWindow::onManagerFinishedDelete(QNetworkReply *reply)
 {
-    qDebug().noquote()<<reply->readAll();
+    QString respuesta = reply->readAll();
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(respuesta.toUtf8());
+    QJsonObject jsonObject = jsonResponse.object();
+    QMessageBox::StandardButton answer;
+    if(jsonObject["error"].toBool())
+    {
+        answer = QMessageBox::information(this, "Advertencia", "Algo salio mal al borrar el archivo.");
+    }
+    else
+    {
+        answer = QMessageBox::information(this, "Éxito", "El archivo ha sido eliminado");
+        file_id = "";
+        fileDownload = "";
+        ui->btnDelete->setEnabled(false);
+        ui->btnDownload->setEnabled(false);
+        on_btnGet_clicked();
+    }
 }
-
+//-------------------------LOG IN / SIGN UP-----------------------------
 void MainWindow::on_actionIniciar_sesi_n_triggered()
 {
     LogWindow newLog;
@@ -490,6 +520,8 @@ void MainWindow::on_tableView_activated(const QModelIndex &index)
 {
     qDebug()<<index;
 }
+
+//--------------------------------LOG OUT-----------------------------------------
 
 void MainWindow::on_actionCerrar_sesi_n_triggered()
 {
@@ -518,12 +550,90 @@ void MainWindow::onManagerFinishedLogOut(QNetworkReply *reply)
     {
         answer = QMessageBox::information(this, "Log Out", "Se ha cerrado sesión");
         QAbstractItemModel *m_listModel = new QStandardItemModel(this);
-        m_listModel->insertColumns(0,3);
-        m_listModel->setHeaderData(0, Qt::Horizontal, QObject::tr("Nombre"));
-        m_listModel->setHeaderData(1, Qt::Horizontal, QObject::tr("Alt Nombre"));
-        m_listModel->setHeaderData(2, Qt::Horizontal, QObject::tr("size KB"));
+        m_listModel->insertColumns(0,4);
+        m_listModel->setHeaderData(0, Qt::Horizontal, QObject::tr("ID"));
+        m_listModel->setHeaderData(1, Qt::Horizontal, QObject::tr("Nombre"));
+        m_listModel->setHeaderData(2, Qt::Horizontal, QObject::tr("Alt Nombre"));
+        m_listModel->setHeaderData(3, Qt::Horizontal, QObject::tr("size KB"));
         ui->tableView->reset();
         ui->tableView->setModel(m_listModel);
     }
 
+}
+
+
+//----------------------------ACTUALIZAR-------------------------------------
+void MainWindow::onManagerFinishedActualizar(QNetworkReply *reply)
+{
+    QString data = reply->readAll();
+    qDebug().noquote()<<data;
+
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(data.toUtf8());
+    QJsonObject jsonObject = jsonResponse.object();
+    QMessageBox::StandardButton answer;
+    if(jsonObject["error"].toBool())//|| jsonObject["eror"].toString()=="Actualizado"
+    {
+        answer = QMessageBox::information(this, "Error", "Ocurrio un error al actualizar tu contraseña");
+    }
+    else
+    {
+        answer = QMessageBox::information(this, "Éxito", "Tu contraseña ha sido actualizada");
+
+    }
+}
+
+
+
+void MainWindow::on_actionActualizar_contrase_a_triggered()
+{
+    if(username=="" || password =="")
+    {
+        QMessageBox::information(this, "Error", "No has iniciado sesión");
+        return;
+    }
+    disconnectManager();
+    EditPassWindow editPass;
+    editPass.setModal(true);
+    editPass.exec();
+    QString newPassword = editPass.getNewPass();
+    qDebug()<<password;
+    qDebug()<<newPassword;
+    m_loaded=false;
+    connect(manager, SIGNAL(finished(QNetworkReply*)),this, SLOT(onManagerFinishedActualizar(QNetworkReply*)));
+    QString urlUpdate = "http://backcloud2019.herokuapp.com/actualizar";
+    QNetworkRequest request(urlUpdate);
+    QUrlQuery postData;
+    postData.addQueryItem("pass",  password.toUtf8());
+    postData.addQueryItem("Npass", newPassword.toUtf8());
+    qDebug()<<postData.queryItemValue("pass");
+    qDebug()<<postData.queryItemValue("pass");
+    qDebug()<<postData.toString(QUrl::FullyEncoded).toUtf8();
+    request.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded");
+    manager->put(request, postData.toString(QUrl::FullyEncoded).toUtf8());
+    remove("./cookie.dat");
+    /*disconnectManager();
+    if(!loadLoginCookie())
+    {
+        login();
+    }*/
+}
+
+void MainWindow::onManagerFinishedSend(QNetworkReply *reply)
+{
+    QString data = reply->readAll();
+    qDebug().noquote()<<data;
+
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(data.toUtf8());
+    QJsonObject jsonObject = jsonResponse.object();
+    QMessageBox::StandardButton answer;
+    if(jsonObject["error"].toBool())//
+    {
+        answer = QMessageBox::information(this, "Error", "Ocurrio un error al subir el archivo");
+    }
+    else
+    {
+        answer = QMessageBox::information(this, "Éxito", "El archivo se ha subido");
+        on_btnGet_clicked();
+
+    }
 }

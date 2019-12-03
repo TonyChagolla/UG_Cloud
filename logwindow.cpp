@@ -47,6 +47,11 @@ void LogWindow::on_btnSignUp_clicked()
         answer = QMessageBox::information(this, "Error", "El usuario debe tener al menos 3 caracteres y la contraseña al menos 8 caracteres");
         return;
     }
+    if(passLog != ui->tbxPassP_2->text())
+    {
+        answer = QMessageBox::information(this, "Error", "Las contraseñas no coinciden.");
+        return;
+    }
     QUrlQuery postData;
     postData.addQueryItem("user",  userLog);
     postData.addQueryItem("pass", passLog);

@@ -63,6 +63,12 @@ private slots:
 
     void onManagerFinishedLogOut(QNetworkReply *reply);
 
+    void onManagerFinishedActualizar(QNetworkReply *reply);
+
+    void onManagerFinishedSend(QNetworkReply *reply);
+
+    void on_actionActualizar_contrase_a_triggered();
+
 private:
     void disconnectManager();
     void login();
@@ -75,6 +81,7 @@ private:
     bool m_loaded;
     QString filePath, fileName, data, fileDownload;
     QString username, password;
+    QString file_id;
 
     //Prueba
     QString url_download;

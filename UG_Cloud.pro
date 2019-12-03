@@ -18,15 +18,18 @@ INCLUDEPATH += "C:/Program Files/OpenSSL-Win64/include"
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    editpasswindow.cpp \
     logwindow.cpp \
     main.cpp \
     mainwindow.cpp
 
 HEADERS += \
+    editpasswindow.h \
     logwindow.h \
     mainwindow.h
 
 FORMS += \
+    editpasswindow.ui \
     logwindow.ui \
     mainwindow.ui
 
